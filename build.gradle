@@ -1,0 +1,117 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'org.sonarqube' version '4.4.1.3373'
+    id 'maven-publish'
+}
+
+group = 'com.example'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // JUnit pour les tests unitaires
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    // Cucumber pour les tests BDD
+    testImplementation 'io.cucumber:cucumber-java:7.14.0'
+    testImplementation 'io.cucumber:cucumber-junit:7.14.0'
+    testImplementation 'io.cucumber:cucumber-junit-platform-engine:7.14.0'
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport // Génère le rapport de couverture après les tests
+}
+
+// Configuration Jacoco pour la couverture de code
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+// Configuration SonarQube
+sonarqube {
+    properties {
+        property "sonar.projectKey", "MonProjet"
+        property "sonar.projectName", "MonProjet"
+        property "sonar.host.url", "http://localhost:9000"
+        property "sonar.sourceEncoding", "UTF-8"
+        property "sonar.sources", "src/main/java"
+        property "sonar.tests", "src/test/java"
+        property "sonar.java.binaries", "build/classes"
+        property "sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml"
+    }
+}
+
+// Configuration Maven Publish pour déployer sur MyMavenRepo
+publishing {
+    publications {
+        maven(MavenPublication) {
+            groupId = project.group
+            artifactId = project.name
+            version = project.version
+
+            from components.java
+
+            // Inclure les sources et la javadoc (optionnel)
+            artifact sourceJar
+            artifact javadocJar
+        }
+    }
+
+    repositories {
+        maven {
+            name = "MyMavenRepo"
+            url = uri(System.getenv("myMavenRepoUrl") ?: "https://mymavenrepo.com/repo/xxxxx")
+            credentials {
+                username = System.getenv("myMavenRepoUsername") ?: ""
+                password = System.getenv("myMavenRepoPassword") ?: ""
+            }
+        }
+    }
+}
+
+// Tâche pour créer le JAR des sources
+task sourceJar(type: Jar) {
+    from sourceSets.main.allJava
+    archiveClassifier = 'sources'
+}
+
+// Tâche pour créer le JAR de la javadoc
+task javadocJar(type: Jar) {
+    from javadoc
+    archiveClassifier = 'javadoc'
+}
+
+// Tâche Cucumber pour générer les rapports
+task cucumber(type: JavaExec) {
+    dependsOn testClasses
+    mainClass = 'io.cucumber.core.cli.Main'
+    classpath = configurations.testRuntimeClasspath + sourceSets.test.output
+    args = [
+            '--plugin', 'pretty',
+            '--plugin', 'html:build/reports/cucumber/cucumber-report.html',
+            '--plugin', 'json:build/reports/cucumber/cucumber.json',
+            '--glue', 'com.example.steps',
+            'src/test/resources/features'
+    ]
+}
+
+// Configuration de la génération de Javadoc
+javadoc {
+    options.encoding = 'UTF-8'
+    options.charSet = 'UTF-8'
+}
